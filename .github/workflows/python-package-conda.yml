@@ -1,0 +1,127 @@
+#@markdown <h3>⬅️ Click Here to Install JDownloader</h3>
+
+import os, uuid, re, IPython
+import ipywidgets as widgets
+
+from glob import glob
+from IPython.display import HTML, clear_output
+from google.colab import output
+
+Email = widgets.Text(placeholder="*Required", description="Email:")
+Password = widgets.Text(placeholder="*Required", description="Password:")
+Device = widgets.Text(placeholder="Optional", description="Name:")
+SavePath = widgets.Dropdown(value="/content", options=["/content", "/content/Downloads"], description="Save Path:")
+
+class MakeButton(object):
+  def __init__(self, title, callback, style):
+    self._title = title
+    self._callback = callback
+    self._style = style
+  def _repr_html_(self):
+    callback_id = 'button-' + str(uuid.uuid4())
+    output.register_callback(callback_id, self._callback)
+    if self._style != "":
+      style_html = "p-Widget jupyter-widgets jupyter-button widget-button mod-" + self._style
+    else:
+      style_html = "p-Widget jupyter-widgets jupyter-button widget-button"
+    template = """<button class="{style_html}" id="{callback_id}">{title}</button>
+        <script>
+          document.querySelector("#{callback_id}").onclick = (e) => {{
+            google.colab.kernel.invokeFunction('{callback_id}', [], {{}})
+            e.preventDefault();
+          }};
+        </script>"""
+    html = template.format(title=self._title, callback_id=callback_id, style_html=style_html)
+    return html
+  
+def MakeLabel(description, button_style):
+  return widgets.Button(description=description, disabled=True, button_style=button_style)
+
+def RefreshPath():
+  if os.path.exists("/content/drive/"):
+    if os.path.exists("/content/drive/Shared drives/"):
+      SavePath.options = ["/content", "/content/Downloads", "/content/drive/My Drive"] + glob("/content/drive/My Drive/*/") + glob("/content/drive/Shared drives/*/")
+    else:
+      SavePath.options = ["/content", "/content/Downloads", "/content/drive/My Drive"] + glob("/content/drive/My Drive/*/")
+  else:
+    SavePath.options = ["/content", "/content/Downloads"]
+
+def LoginForm():
+  clear_output(wait=True)
+  Email.value = "ismhazel@gmail.com"
+  Password.value = "19940206hi"
+  Device.value = ""
+  RefreshPath()
+  display(HTML("<h3 style=\"font-family:Trebuchet MS;color:#4f8bd6;\">If you don't have an account yet, please register <a href=\"https://my.jdownloader.org/login.html#register\" target=\"_blank\">here</a>.</h3>"), HTML("<br>"), Email, Password, Device, SavePath, MakeButton("Refresh", RefreshPath, ""))
+  if not os.path.exists("/content/drive/"):
+    display(HTML("*If you want to save in Google Drive please run the cell below."))
+  display(HTML("<br>"), MakeButton("Login", CheckLogin, "info"))
+  if os.path.isfile("/root/.JDownloader/cfg/org.jdownloader.api.myjdownloader.MyJDownloaderSettings.json"):
+    display(MakeButton("Cancel", Show, "danger"))
+  
+def RestartForm():
+  clear_output(wait=True)
+  display(MakeLabel("Restart Confirm?", ""), MakeButton("Confirm", Restart, "danger"), MakeButton("Cancel", Show, "warning"))
+  
+def ExitForm():
+  clear_output(wait=True)
+  display(MakeLabel("Exit Confirm?", ""), MakeButton("Confirm", Exit, "danger"), MakeButton("Cancel", Show, "warning"))
+
+def CheckLogin():
+  try:
+    if not Email.value.strip():
+      ERROR = "Email field is empty."
+      THROW_ERROR
+    if not "@" in Email.value and not "." in Email.value:
+      ERROR = "Email is an incorrect format."
+      THROW_ERROR
+    if not Password.value.strip():
+      ERROR = "Password field is empty."
+      THROW_ERROR
+    if not bool(re.match("^[a-zA-Z0-9]+$", Device.value)) and Device.value.strip():
+      ERROR = "Only alphanumeric are allowed for the device name."
+      THROW_ERROR
+    Login()
+  except:
+    print(ERROR)
+
+def Login():
+  clear_output(wait=True)
+  if SavePath.value == "/content":
+    get_ipython().system_raw("echo '{\"defaultdownloadfolder\" : \"/content\"}' > /root/.JDownloader/cfg/org.jdownloader.settings.GeneralSettings.json")
+  elif SavePath.value == "/content/Downloads":
+    get_ipython().system_raw("mkdir -p -m 666 /content/Downloads")
+    get_ipython().system_raw("echo '{\"defaultdownloadfolder\" : \"/content/Downloads\"}' > /root/.JDownloader/cfg/org.jdownloader.settings.GeneralSettings.json")
+  else:
+    get_ipython().system_raw("echo '{\"defaultdownloadfolder\" : \"" + SavePath.value + "\"}' > /root/.JDownloader/cfg/org.jdownloader.settings.GeneralSettings.json")
+  if Device.value.strip() == "":
+    Device.value = Email.value
+  get_ipython().system_raw("pkill -9 -e -f java")
+  get_ipython().system_raw("echo '{\"email\" : \"'" + Email.value + "'\", \"password\" : \"'" + Password.value + "'\", \"devicename\" : \"'" + Device.value + "'\", \"directconnectmode\" : \"LAN\"}' > /root/.JDownloader/cfg/org.jdownloader.api.myjdownloader.MyJDownloaderSettings.json")
+  get_ipython().system_raw("java -jar /root/.JDownloader/JDownloader.jar -norestart -noerr -r &")
+  Show()
+
+def Restart():
+  get_ipython().system_raw("pkill -9 -e -f java")
+  get_ipython().system_raw("java -jar /root/.JDownloader/JDownloader.jar -norestart -noerr -r &")
+  Show()
+  
+def Exit():
+  get_ipython().system_raw("pkill -9 -e -f java")
+  clear_output(wait=True)
+  display(MakeButton("Start", Restart, "info"))
+  
+def Show():
+  clear_output(wait=True)
+  display(MakeLabel("Control Panel", ""), HTML("<h3 style=\"font-family:Trebuchet MS;color:#4f8bd6;\">You can login to the WebUI by clicking <a href=\"https://my.jdownloader.org/\" target=\"_blank\">here</a>.</h3>"), HTML("<h4 style=\"font-family:Trebuchet MS;color:#4f8bd6;\">If the server didn't showup in 30 sec. please re-login.</h4>"), HTML("<br>"), MakeButton("Re-Login", LoginForm, "info"), MakeButton("Restart", RestartForm, "warning"), MakeButton("Exit", ExitForm, "danger"))
+  
+    
+if not os.path.isfile("/root/.JDownloader/JDownloader.jar"):
+  clear_output(wait=True)
+  display(MakeLabel("Installing in Progress", "warning"))
+  get_ipython().system_raw("rm -rf /content/sample_data/ && apt install openjdk-8-jre-headless -qq -y && mkdir -p -m 666 /root/.JDownloader/libs && wget -q http://installer.jdownloader.org/JDownloader.jar -O /root/.JDownloader/JDownloader.jar && java -jar /root/.JDownloader/JDownloader.jar -norestart -h && wget -q https://szyha.github.io/RcloneLabArchive/res/jdownloader/sevenzipjbinding1509.jar -O /root/.JDownloader/libs/sevenzipjbinding1509.jar && wget -q https://szyha.github.io/RcloneLabArchive/res/jdownloader/sevenzipjbinding1509Linux.jar -O /root/.JDownloader/libs/sevenzipjbinding1509Linux.jar")
+  LoginForm()
+elif not os.path.isfile("/root/.JDownloader/cfg/org.jdownloader.api.myjdownloader.MyJDownloaderSettings.json"):
+  LoginForm()
+else:  
+  Show()
